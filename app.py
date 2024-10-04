@@ -29,6 +29,7 @@ RESERVED_TOKENS = 1000
 # Initialize the tokenizer for GPT-4
 encoding = tiktoken.encoding_for_model('gpt-4o')
 
+
 def num_tokens_from_messages(messages):
     """
     Calculate the number of tokens used by a list of messages.
@@ -54,8 +55,6 @@ def vector_search(embedding):
                 "limit": 5,
             }
         },
-        ## We are extracting 'vectorSearchScore' here
-        ## columns with 1 are included, columns with 0 are excluded
         {
             "$project": {
                 '_id' : 0,
@@ -72,16 +71,15 @@ def get_relevant_documents(user_input):
     # Generate embedding for the user's input
     response = ai.embeddings.create(input=user_input, model='text-embedding-ada-002')
     user_embedding = response.data[0].embedding
-
     results = vector_search(user_embedding)
-    
-    relevant_docs = ["publish date: " + str(doc['published']) + ", news:" + doc['text'] for doc in results]
+    relevant_docs = [ "publish date: " + str(doc['published']) + ", news:" + doc['text'] for doc in results ]
     return relevant_docs
 
 
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 @app.route('/chat', methods=['POST'])
 def chat():
