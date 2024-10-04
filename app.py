@@ -69,7 +69,7 @@ def vector_search(embedding):
 
 def get_relevant_documents(user_input):
     # Generate embedding for the user's input
-    response = ai.embeddings.create(input=user_input, model='text-embedding-ada-002')
+    response = ai.embeddings.create(input = user_input, model = 'text-embedding-ada-002')
     user_embedding = response.data[0].embedding
     results = vector_search(user_embedding)
     relevant_docs = [ "publish date: " + str(doc['published']) + ", news:" + doc['text'] for doc in results ]
@@ -87,14 +87,14 @@ def chat():
     chat_history = request.json.get('history', [])
 
     # Define the system prompt
-    system_prompt = {"role": "system", "content": "You manage a news repository. For everything you tell me about, add information about the publishing date of the news. Use a format like 'September 7, 2024'. If you have news from several days, please sort them from the newest to the oldest."}
+    system_prompt = { "role": "system", "content": "You manage a news repository. For everything you tell me about, add information about the publishing date of the news. Use a format like 'September 7, 2024'. If you have news from several days, please sort them from the newest to the oldest." }
 
     # Ensure the system prompt is at the beginning of the chat history
     if not chat_history or chat_history[0].get('role') != 'system':
         chat_history.insert(0, system_prompt)
 
     # Append the user's message to the chat history
-    chat_history.append({"role": "user", "content": user_message})
+    chat_history.append({ "role": "user", "content": user_message })
 
     # Get relevant documents from MongoDB
     relevant_docs = get_relevant_documents(user_message)
@@ -143,7 +143,7 @@ def chat():
 
         if response.status_code != 200:
             error_message = response.json().get('error', {}).get('message', 'Failed to get response from OpenAI API')
-            yield f"data: {json.dumps({'error': error_message})}\n\n"
+            yield f"data: { json.dumps({'error': error_message}) }\n\n"
             return
 
         assistant_reply = ''
@@ -160,11 +160,11 @@ def chat():
                         content = delta['content']
                         assistant_reply += content
                         # Send the new content to the client
-                        yield f"data: {json.dumps({'content': content})}\n\n"
+                        yield f"data: { json.dumps({'content': content}) }\n\n"
         # Append assistant's reply to the chat history
-        chat_history.append({"role": "assistant", "content": assistant_reply})
+        chat_history.append({ "role": "assistant", "content": assistant_reply })
         # Send the final message with updated history
-        yield f"data: {json.dumps({'done': True, 'history': chat_history})}\n\n"
+        yield f"data: { json.dumps({ 'done': True, 'history': chat_history }) }\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
 
