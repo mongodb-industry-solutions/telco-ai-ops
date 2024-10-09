@@ -4,7 +4,7 @@ import requests
 import json
 import pymongo
 import tiktoken  # For token counting
-import os
+import os, pycountry
 
 app = Flask(__name__)
 
@@ -18,6 +18,9 @@ mongo_client = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
 mongo_db = mongo_client[MONGODB_DATABASE_NAME]
 mongo_collection = mongo_db[MONGODB_COLLECTION_NAME]
 
+# raw data for pre-aggregations
+access_log_collection = mongo_db["access_log"]
+
 ai = OpenAI()
 
 # Set the maximum token limit for GPT-4 (adjust if using a different variant)
@@ -28,6 +31,76 @@ RESERVED_TOKENS = 1000
 
 # Initialize the tokenizer for GPT-4
 encoding = tiktoken.encoding_for_model('gpt-4o')
+
+# pre-aggregated input for the LLM
+pipeline_countries = [
+    {
+        "$match": {
+            "country": { "$exists": True },
+            "city": { "$exists": True }
+        }
+    },
+    {
+        "$group": {
+            "_id": {
+                "country": "$country",
+                "city": "$city"
+            },
+            "city_access_count": { "$sum": 1 }
+        }
+    },
+    {
+        "$sort": { "city_access_count": -1 }
+    },
+    {
+        "$group": {
+            "_id": "$_id.country",
+            "access_count": { "$sum": "$city_access_count" },
+            "top_cities": {
+                "$push": {
+                    "city": "$_id.city",
+                    "access_count": "$city_access_count"
+                }
+            }
+        }
+    },
+    {
+        "$sort": { "access_count": -1 }
+    },
+    {
+        "$limit": 12
+    },
+    {
+        "$project": {
+            "_id": 1,
+            "access_count": 1,
+            "top_cities": {
+                "$slice": ["$top_cities", 5]
+            }
+        }
+    }
+]
+
+pipeline_paths = [
+    {
+        "$group": {
+            "_id": "$path",
+            "access_count": { "$sum": 1 }
+        }
+    },
+    {
+        "$sort": { "access_count": -1 }
+    },
+    {
+        "$limit": 10
+    },
+    {
+        "$project": {
+            "_id": 1,
+            "access_count": 1
+        }
+    }
+]
 
 
 def num_tokens_from_messages(messages):
@@ -76,6 +149,22 @@ def get_relevant_documents(user_input):
     return relevant_docs
 
 
+def get_country_name(iso_code):
+    country = pycountry.countries.get(alpha_2=iso_code)
+    return country.name if country else "Unknown"
+
+
+def get_logs(user_input):
+    try:
+        country_stats = list(access_log_collection.aggregate(pipeline_countries))
+        for entry in country_stats: # add full country names
+            entry['country'] = get_country_name(entry['_id'])
+        return str(country_stats)
+    except Exception as e:
+        print(e)
+        exit(1)
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -87,7 +176,7 @@ def chat():
     chat_history = request.json.get('history', [])
 
     # Define the system prompt
-    system_prompt = { "role": "system", "content": "You manage a news repository. For everything you tell me about, add information about the publishing date of the news. Use a format like 'September 7, 2024'. If you have news from several days, please sort them from the newest to the oldest." }
+    system_prompt = { "role": "system", "content": "You are a telco network AI-OPS chatbot. I can communicate with you about the health of the network and ask about current stats. You will find latest aggregated data in your context prompt. Please use that to provide meaingful answers, including projections into the future where appropriate or asked for." }
 
     # Ensure the system prompt is at the beginning of the chat history
     if not chat_history or chat_history[0].get('role') != 'system':
@@ -97,7 +186,8 @@ def chat():
     chat_history.append({ "role": "user", "content": user_message })
 
     # Get relevant documents from MongoDB
-    relevant_docs = get_relevant_documents(user_message)
+    relevant_docs = get_logs(user_message)
+    #relevant_docs = get_relevant_documents(user_message)
 
     # Incorporate the context into the conversation
     if relevant_docs:
