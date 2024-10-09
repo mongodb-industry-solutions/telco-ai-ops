@@ -4,7 +4,7 @@ import requests
 import json
 import pymongo
 import tiktoken  # For token counting
-import os, pycountry
+import os, re, pycountry, datetime
 
 app = Flask(__name__)
 
@@ -31,6 +31,89 @@ RESERVED_TOKENS = 1000
 
 # Initialize the tokenizer for GPT-4
 encoding = tiktoken.encoding_for_model('gpt-4o')
+
+
+def parse_iso_date(match):
+    date_str = match.group(1)
+    # Remove 'Z' at the end if present
+    if date_str.endswith('Z'):
+        date_str = date_str[:-1]
+    # Replace 'T' with space to match strptime format
+    date_str = date_str.replace('T', ' ')
+    # Return a placeholder
+    return '"__ISODate__{}__"'.format(date_str)
+
+
+def replace_iso_dates(obj):
+    if isinstance(obj, dict):
+        return {k: replace_iso_dates(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_iso_dates(v) for v in obj]
+    elif isinstance(obj, str) and obj.startswith('__ISODate__'):
+        date_str = obj.strip('__ISODate__')
+        dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        return dt
+    else:
+        return obj
+
+
+def process_pipeline(pipeline_str):
+    # Replace ISODate('...') with a placeholder
+    pipeline_str = re.sub(r'ISODate\(\s*[\'"](.+?)[\'"]\s*\)', parse_iso_date, pipeline_str)
+    # Replace single quotes with double quotes
+    pipeline_str = pipeline_str.replace("'", '"')
+    # Parse the JSON string
+    pipeline = json.loads(pipeline_str)
+    # Replace placeholders with datetime objects
+    pipeline = replace_iso_dates(pipeline)
+    return pipeline
+
+
+def gen(text):
+    prompt = f"""
+
+    Ich brauche Dich als MongoDB aggregation pipeline builder. Du
+    übersetzt jeweils meine natürlichsprachlichen Abfragen in eine
+    passende pipeline, die dann MongoDB-Daten zurückliefert, die in
+    einer RAG Architektur zu leistungsfähigen ergebnissen führt. das
+    zugrundeliegende MongoDB-Datenschema lautet wie folgt:
+
+    {{
+      _id: ObjectId('668551649101ed2d266dd505'),
+      timestamp: ISODate('2024-07-03T13:25:56.391Z'),
+      path: '/backstage',
+      ip: '104.30.134.186',
+      city: 'Copenhagen',
+      country: 'DK'
+    }}
+
+    Bitte liefere stets nur das Javascript zurück, nix drum herum. Auch kein
+    ```javascript oder ähnliches.
+
+    Ich wiederhole: Nur die Javascript Liste zurückgeben, kein ```oder ´´´, keinerlei
+    andere prefixe oder suffixe.
+    {text}
+    """
+
+    try:
+        response = ai.chat.completions.create(
+            model = "gpt-4o",
+            messages = [
+                { "role" : "system", "content" : "You are a MongoDB query creation assistant." },
+                { "role" : "user", "content" : prompt }
+            ],
+            max_tokens = 2000,
+            n = 1,
+            temperature = 0.7
+        )
+        pipeline = response.choices[0].message.content.strip()
+        print(pipeline)
+        return pipeline
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
 
 # pre-aggregated input for the LLM
 pipeline_countries = [
@@ -156,12 +239,23 @@ def get_country_name(iso_code):
 
 def get_logs(user_input):
     try:
-        country_stats = list(access_log_collection.aggregate(pipeline_countries))
-        for entry in country_stats: # add full country names
-            entry['country'] = get_country_name(entry['_id'])
-        return str(country_stats)
+        #country_stats = list(access_log_collection.aggregate(pipeline_countries))
+        #for entry in country_stats: # add full country names
+        #    entry['country'] = get_country_name(entry['_id'])
+        #return str(country_stats)
+        pipeline = gen(user_input)
+        if pipeline:
+            try:
+                pipeline = process_pipeline(pipeline)
+                print(pipeline)
+                return str(list(access_log_collection.aggregate(pipeline)))
+            except:
+                return ""
+        else:
+            return ""
+
     except Exception as e:
-        print(e)
+        print("get_logs(): " + str(e))
         exit(1)
 
 
