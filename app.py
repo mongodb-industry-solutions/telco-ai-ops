@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, Response
 from openai import OpenAI
 import requests
 import json
+from bson import json_util
 import pymongo
 import tiktoken  # For token counting
 import os, re, pycountry, datetime
@@ -33,49 +34,17 @@ RESERVED_TOKENS = 1000
 encoding = tiktoken.encoding_for_model('gpt-4o')
 
 
-def parse_iso_date(match):
-    date_str = match.group(1)
-    # Remove 'Z' at the end if present
-    if date_str.endswith('Z'):
-        date_str = date_str[:-1]
-    # Replace 'T' with space to match strptime format
-    date_str = date_str.replace('T', ' ')
-    # Return a placeholder
-    return '"__ISODate__{}__"'.format(date_str)
-
-
-def replace_iso_dates(obj):
-    if isinstance(obj, dict):
-        return {k: replace_iso_dates(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [replace_iso_dates(v) for v in obj]
-    elif isinstance(obj, str) and obj.startswith('__ISODate__'):
-        date_str = obj.strip('__ISODate__')
-        dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-        return dt
-    else:
-        return obj
-
-
 def process_pipeline(pipeline_str):
-    # Replace ISODate('...') with a placeholder
-    pipeline_str = re.sub(r'ISODate\(\s*[\'"](.+?)[\'"]\s*\)', parse_iso_date, pipeline_str)
-    # Replace single quotes with double quotes
-    pipeline_str = pipeline_str.replace("'", '"')
-    # Parse the JSON string
-    pipeline = json.loads(pipeline_str)
-    # Replace placeholders with datetime objects
-    pipeline = replace_iso_dates(pipeline)
-    return pipeline
+    return eval(pipeline_str)
 
 
 def gen(text):
     prompt = f"""
 
-    Ich brauche Dich als MongoDB aggregation pipeline builder. Du
-    übersetzt jeweils meine natürlichsprachlichen Abfragen in eine
-    passende pipeline, die dann MongoDB-Daten zurückliefert, die in
-    einer RAG Architektur zu leistungsfähigen ergebnissen führt. das
+    Ich benötige dich als MongoDB Aggregation Pipeline Builder. Du
+    übersetzt meine natürlichsprachlichen Abfragen in passende
+    Pipelines, die MongoDB-Daten zurückliefern und in einer
+    RAG-Architektur zu leistungsfähigen Ergebnissen führen. Das
     zugrundeliegende MongoDB-Datenschema lautet wie folgt:
 
     {{
@@ -87,11 +56,28 @@ def gen(text):
       country: 'DK'
     }}
 
-    Bitte liefere stets nur das Javascript zurück, nix drum herum. Auch kein
-    ```javascript oder ähnliches.
+    Bitte liefere stets nur die Pipeline in Python-Syntax als Liste
+    zurück, ohne jegliche zusätzliche Formatierungen oder Codeblöcke
+    wie javascript oder python.
 
-    Ich wiederhole: Nur die Javascript Liste zurückgeben, kein ```oder ´´´, keinerlei
-    andere prefixe oder suffixe.
+    Wichtig: Die generierte Pipeline soll ausreichend expressiv sein,
+    um als Kontexteingabe zu dienen. Insbesondere sollen Aggregationen
+    einen klaren Titel oder Präfix enthalten, der genau beschreibt,
+    was aggregiert wird. Füge dafür in der Pipeline geeignete Schritte
+    wie $addFields oder $project hinzu, um beispielsweise ein Feld
+    aggregation_title mit einer Beschreibung der Aggregation zu
+    erstellen. Transformiere Zahlen und Ziffern in Strings,
+    beispielsweise bei einer Berechnung von $dayOfWeek und
+    $dayOfMonth.
+
+    Wichtig: Füge niemals Stages in the Pipeline, die Schreibzugriffe
+    auf der Datenbank ausführen, etwa $merge. Die Berechnungen der
+    Pipeline müssen immer direkt ausgegeben werden.
+
+    Ich wiederhole: Gib nur die Python-Liste zurück, ohne irgendwelche
+    zusätzlichen Präfixe oder Suffixe.
+
+
     {text}
     """
 
@@ -246,13 +232,18 @@ def get_logs(user_input):
         pipeline = gen(user_input)
         if pipeline:
             try:
-                pipeline = process_pipeline(pipeline)
-                print(pipeline)
-                return str(list(access_log_collection.aggregate(pipeline)))
-            except:
-                return ""
+                pipeline_converted = process_pipeline(pipeline)
+                context = str(list(access_log_collection.aggregate(pipeline_converted)))
+                if len(context) < 256000:
+                    print(context)
+                    return pipeline, context
+                else:
+                    return pipeline, "No useful context could be calculated, as your question was too generic / wide."
+            except Exception as e:
+                print(e)
+                return "", ""
         else:
-            return ""
+            return "", ""
 
     except Exception as e:
         print("get_logs(): " + str(e))
@@ -280,12 +271,13 @@ def chat():
     chat_history.append({ "role": "user", "content": user_message })
 
     # Get relevant documents from MongoDB
-    relevant_docs = get_logs(user_message)
+    mongo_query, returned_logs = get_logs(user_message)
     #relevant_docs = get_relevant_documents(user_message)
 
     # Incorporate the context into the conversation
-    if relevant_docs:
-        context = "\n\n".join(relevant_docs)
+    if len(returned_logs) > 10:
+        context = mongo_query + "\n\n" + returned_logs
+        print(context)
         context_message = {
             "role": "system",
             "content": f"Answer the question based on the following context:\n\n{context}"
