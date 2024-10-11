@@ -242,7 +242,6 @@ def get_logs(user_input):
                 pipeline_converted = process_pipeline(pipeline)
                 context = str(list(access_log_collection.aggregate(pipeline_converted)))
                 if len(context) < 256000:
-                    print(context)
                     return pipeline, context
                 else:
                     return pipeline, "No useful context could be calculated, as your question was too generic / wide."
@@ -284,7 +283,6 @@ def chat():
     # Incorporate the context into the conversation
     if len(returned_logs) > 10:
         context = mongo_query + "\n\n" + returned_logs
-        print(context)
         context_message = {
             "role": "system",
             "content": f"Answer the question based on the following context:\n\n{context}"
