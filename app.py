@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2024 MongoDB Inc.
+# Author: Benjamin Lorenz <benjamin.lorenz@mongodb.com>
+#
+
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
 import requests
@@ -11,6 +16,8 @@ app = Flask(__name__)
 
 # Load your OpenAI API key from an environment variable or other secure location
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# The telemetrics data - adapt this to your needs!
 MONGODB_CONNECTION_STRING = os.getenv('MONGODB_IST_MEDIA')
 MONGODB_DATABASE_NAME = '1_media_demo'
 MONGODB_COLLECTION_NAME = 'news'
@@ -48,11 +55,10 @@ def process_pipeline(pipeline_str):
 def gen(text):
     prompt = f"""
 
-    Ich benötige dich als MongoDB Aggregation Pipeline Builder. Du
-    übersetzt meine natürlichsprachlichen Abfragen in passende
-    Pipelines, die MongoDB-Daten zurückliefern und in einer
-    RAG-Architektur zu leistungsfähigen Ergebnissen führen. Das
-    zugrundeliegende MongoDB-Datenschema lautet wie folgt:
+    I need you as a MongoDB Aggregation Pipeline Builder. You
+    translate my natural language queries into appropriate pipelines
+    that return MongoDB data and lead to efficient results in a RAG
+    architecture. The underlying MongoDB data schema is as follows:
 
     {{
       _id: ObjectId('668551649101ed2d266dd505'),
@@ -63,27 +69,25 @@ def gen(text):
       country: 'DK'
     }}
 
-    Bitte liefere stets nur die Pipeline in Python-Syntax als Liste
-    zurück, ohne jegliche zusätzliche Formatierungen oder Codeblöcke
-    wie javascript oder python.
+    Please always return only the pipeline in Python syntax as a list,
+    without any additional formatting or code blocks such as
+    JavaScript or Python.
 
-    Wichtig: Die generierte Pipeline soll ausreichend expressiv sein,
-    um als Kontexteingabe zu dienen. Insbesondere sollen Aggregationen
-    einen klaren Titel oder Präfix enthalten, der genau beschreibt,
-    was aggregiert wird. Füge dafür in der Pipeline geeignete Schritte
-    wie $addFields oder $project hinzu, um beispielsweise ein Feld
-    aggregation_title mit einer Beschreibung der Aggregation zu
-    erstellen. Transformiere Zahlen und Ziffern in Strings,
-    beispielsweise bei einer Berechnung von $dayOfWeek und
-    $dayOfMonth.
+    Important: The results when executing the generated pipeline shall
+    be sufficiently expressive to serve as contextual
+    input. Aggregations, in particular, should include a clear title
+    or prefix that precisely describes what is being aggregated. Add
+    appropriate steps like $addFields or $project in the pipeline to,
+    for instance, create a field aggregation_title with a description
+    of the aggregation. Transform numbers and digits into strings, for
+    example, when calculating $dayOfWeek and $dayOfMonth.
 
-    Wichtig: Füge niemals Stages in the Pipeline, die Schreibzugriffe
-    auf der Datenbank ausführen, etwa $merge. Die Berechnungen der
-    Pipeline müssen immer direkt ausgegeben werden.
+    Important: Never include stages in the pipeline that perform write
+    operations on the database, such as $merge. The calculations of
+    the pipeline must always be directly output.
 
-    Ich wiederhole: Gib nur die Python-Liste zurück, ohne irgendwelche
-    zusätzlichen Präfixe oder Suffixe.
-
+    To repeat: Only provide the Python list, without any additional
+    prefixes or suffixes.
 
     {text}
     """
@@ -108,77 +112,6 @@ def gen(text):
         return None
 
 
-# pre-aggregated input for the LLM
-pipeline_countries = [
-    {
-        "$match": {
-            "country": { "$exists": True },
-            "city": { "$exists": True }
-        }
-    },
-    {
-        "$group": {
-            "_id": {
-                "country": "$country",
-                "city": "$city"
-            },
-            "city_access_count": { "$sum": 1 }
-        }
-    },
-    {
-        "$sort": { "city_access_count": -1 }
-    },
-    {
-        "$group": {
-            "_id": "$_id.country",
-            "access_count": { "$sum": "$city_access_count" },
-            "top_cities": {
-                "$push": {
-                    "city": "$_id.city",
-                    "access_count": "$city_access_count"
-                }
-            }
-        }
-    },
-    {
-        "$sort": { "access_count": -1 }
-    },
-    {
-        "$limit": 12
-    },
-    {
-        "$project": {
-            "_id": 1,
-            "access_count": 1,
-            "top_cities": {
-                "$slice": ["$top_cities", 5]
-            }
-        }
-    }
-]
-
-pipeline_paths = [
-    {
-        "$group": {
-            "_id": "$path",
-            "access_count": { "$sum": 1 }
-        }
-    },
-    {
-        "$sort": { "access_count": -1 }
-    },
-    {
-        "$limit": 10
-    },
-    {
-        "$project": {
-            "_id": 1,
-            "access_count": 1
-        }
-    }
-]
-
-
 def num_tokens_from_messages(messages):
     """
     Calculate the number of tokens used by a list of messages.
@@ -193,49 +126,8 @@ def num_tokens_from_messages(messages):
     return num_tokens
 
 
-def vector_search(embedding):
-    results = mongo_collection.aggregate([
-        {
-            '$vectorSearch': {
-                "index": 'vector_index',
-                "path": 'embedding',
-                "queryVector": embedding,
-                "numCandidates": 20,
-                "limit": 5,
-            }
-        },
-        {
-            "$project": {
-                '_id' : 0,
-                'text' : 1,
-                'published' : 1,
-                "search_score": { "$meta": "vectorSearchScore" }
-            }
-        }
-    ])
-    return list(results)
-
-
-def get_relevant_documents(user_input):
-    # Generate embedding for the user's input
-    response = ai.embeddings.create(input = user_input, model = 'text-embedding-ada-002')
-    user_embedding = response.data[0].embedding
-    results = vector_search(user_embedding)
-    relevant_docs = [ "publish date: " + str(doc['published']) + ", news:" + doc['text'] for doc in results ]
-    return relevant_docs
-
-
-def get_country_name(iso_code):
-    country = pycountry.countries.get(alpha_2=iso_code)
-    return country.name if country else "Unknown"
-
-
 def get_logs(user_input):
     try:
-        #country_stats = list(access_log_collection.aggregate(pipeline_countries))
-        #for entry in country_stats: # add full country names
-        #    entry['country'] = get_country_name(entry['_id'])
-        #return str(country_stats)
         pipeline = gen(user_input)
         if pipeline:
             try:
@@ -267,7 +159,16 @@ def chat():
     chat_history = request.json.get('history', [])
 
     # Define the system prompt
-    system_prompt = { "role": "system", "content": "You are a telco network AI-OPS chatbot. I can communicate with you about the health of the network and ask about current stats. You will find latest aggregated data in your context prompt. Please use that to provide meaingful answers, including projections into the future where appropriate or asked for." }
+    system_prompt = { "role": "system", "content":
+                      """
+                      You are a telco network AI-OPS chatbot.
+                      I can communicate with you about the health of the network
+                      and ask about current stats. You will find latest aggregated
+                      data in your context prompt. Please use that to provide
+                      meaingful answers, including projections into the future where
+                      appropriate or asked for.
+                      """
+                     }
 
     # Ensure the system prompt is at the beginning of the chat history
     if not chat_history or chat_history[0].get('role') != 'system':
