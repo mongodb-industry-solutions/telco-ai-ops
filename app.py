@@ -5,12 +5,7 @@
 
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
-import requests
-import json
-from bson import json_util
-import pymongo
-import tiktoken  # For token counting
-import os, re, pycountry, datetime
+import os, re, datetime, requests, json, pymongo, tiktoken
 
 app = Flask(__name__)
 
