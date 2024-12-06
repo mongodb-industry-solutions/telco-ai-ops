@@ -18,16 +18,11 @@ app = Flask(__name__)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # The telemetrics data - adapt this to your needs!
-MONGODB_CONNECTION_STRING = os.getenv('MONGODB_IST_MEDIA')
-MONGODB_DATABASE_NAME = '1_media_demo'
-MONGODB_COLLECTION_NAME = 'news'
+MCONN = os.getenv('MONGODB_TELCO_CHAT') # the MongoDB connection string
+MBASE = os.getenv('MONGODB_TELCO_CHAT_DATABASE') # the database to be used
+MCOLL = os.getenv('MONGODB_TELCO_CHAT_COLLECTION') # ...and the collection
 
-mongo_client = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
-mongo_db = mongo_client[MONGODB_DATABASE_NAME]
-mongo_collection = mongo_db[MONGODB_COLLECTION_NAME]
-
-# raw data for pre-aggregations
-access_log_collection = mongo_db["access_log"]
+access_log_collection = pymongo.MongoClient(MCONN)[MBASE][MCOLL]
 
 ai = OpenAI()
 
