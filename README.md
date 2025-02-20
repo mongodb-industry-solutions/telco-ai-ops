@@ -7,6 +7,8 @@ aggregation pipelines, which in turn are defined by the same LLM, in the first s
 #### Set environment variables to access your OpenAI token and your MongoDB Atlas cluster
 
 ```
+export OPENAI_API_KEY='<key>'
+
 export MONGODB_TELCO_CHAT='<connection string>'
 export MONGODB_TELCO_CHAT_DATABASE='<database name>'
 export MONGODB_TELCO_CHAT_COLLECTION='<collection name>'
