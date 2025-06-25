@@ -75,6 +75,7 @@ function handleChatFormSubmit(e, customMessage = null) {
                         if (data.done) {
 				            parsed = marked.parse(assistantMessageContent[0].innerHTML);
                             assistantMessageContent[0].innerHTML = parsed;
+                            $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
                             chatHistory = data.history;
                         }
                     }

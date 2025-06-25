@@ -9,7 +9,7 @@ import os, re, datetime, requests, json, pymongo, tiktoken
 
 app = Flask(__name__)
 
-# Load your OpenAI API key from an environment variable or other secure location
+XAI_API_KEY = os.getenv('XAI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # The telemetrics data - adapt this to your needs!
@@ -19,15 +19,11 @@ MCOLL = os.getenv('MONGODB_TELCO_CHAT_COLLECTION') # ...and the collection
 
 access_log_collection = pymongo.MongoClient(MCONN)[MBASE][MCOLL]
 
-ai = OpenAI()
+ai = OpenAI(api_key = XAI_API_KEY, base_url = "https://api.x.ai/v1")
 
-# Set the maximum token limit for GPT-4 (adjust if using a different variant)
 MAX_TOKENS = 8192
-
-# Reserve tokens for the assistant's reply and system prompt (if any)
 RESERVED_TOKENS = 1000
 
-# Initialize the tokenizer for GPT-4
 encoding = tiktoken.encoding_for_model('gpt-4o')
 
 
@@ -72,6 +68,10 @@ def gen(text):
     of the aggregation. Transform numbers and digits into strings, for
     example, when calculating $dayOfWeek and $dayOfMonth.
 
+    If data for specific date, month, day, or weekday is requested,
+    assume that we have the year 2025 and include this in the query
+    generation.
+
     Important: Never include stages in the pipeline that perform write
     operations on the database, such as $merge. The calculations of
     the pipeline must always be directly output.
@@ -84,7 +84,7 @@ def gen(text):
 
     try:
         response = ai.chat.completions.create(
-            model = "gpt-4o",
+            model = "grok-3-latest",
             messages = [
                 { "role" : "system", "content" : "You are a MongoDB query creation assistant." },
                 { "role" : "user", "content" : prompt }
@@ -194,7 +194,6 @@ def chat():
             break
 
     def generate():
-        # Prepare the payload for OpenAI API
         payload = {
             "model": "gpt-4o",
             "messages": chat_history,
