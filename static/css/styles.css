@@ -1,9 +1,15 @@
+/*
+ *  Copyright (c) 2024, 2025 MongoDB Inc.
+ *  Author: Benjamin Lorenz <benjamin.lorenz@mongodb.com>
+ */
+
+
 body {
     background-color: #f8f9fa;
 }
 
 #chat-box {
-    height: 580px;
+    height: 420px;
     overflow-y: scroll;
     background-color: #ffffff;
     border: 1px solid #dee2e6;

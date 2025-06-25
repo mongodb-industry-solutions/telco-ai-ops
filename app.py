@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 MongoDB Inc.
+# Copyright (c) 2024, 2025 MongoDB Inc.
 # Author: Benjamin Lorenz <benjamin.lorenz@mongodb.com>
 #
 
@@ -34,10 +34,10 @@ encoding = tiktoken.encoding_for_model('gpt-4o')
 def process_pipeline(pipeline_str):
     from datetime import datetime
     from bson import ObjectId
-    
+
     def ISODate(date_str):
         return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-    
+
     local_scope = {'ISODate': ISODate, 'ObjectId': ObjectId}
     return eval(pipeline_str, {"__builtins__": None}, local_scope)
 
