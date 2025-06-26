@@ -9,7 +9,7 @@ body {
 }
 
 #chat-box {
-    height: 420px;
+    height: 480px;
     overflow-y: scroll;
     background-color: #ffffff;
     border: 1px solid #dee2e6;

@@ -5,6 +5,24 @@
 
 let chatHistory = [];
 
+function updatePipelineSidebar() {
+    fetch('/latest-pipeline')
+        .then(res => res.text())
+        .then(text => {
+            const formatted = text
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/\n/g, '<br>')
+                  .replace(/  /g, '&nbsp;&nbsp;');
+
+            document.getElementById('sidebar').innerHTML = `
+              <h2 style="font-size: 1.25rem; color: #444;">Aggregation Pipeline</h2>
+              <div style="font-family: monospace; font-size: 0.6rem; line-height: 1.3;">${formatted}</div>
+            `;
+        });
+}
+
 function handleChatFormSubmit(e, customMessage = null) {
     if (e) e.preventDefault();
     let message = customMessage || $('#message-input').val();
@@ -76,6 +94,7 @@ function handleChatFormSubmit(e, customMessage = null) {
 				            parsed = marked.parse(assistantMessageContent[0].innerHTML);
                             assistantMessageContent[0].innerHTML = parsed;
                             $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+                            updatePipelineSidebar();
                             chatHistory = data.history;
                         }
                     }

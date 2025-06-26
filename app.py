@@ -3,7 +3,7 @@
 # Author: Benjamin Lorenz <benjamin.lorenz@mongodb.com>
 #
 
-from flask import Flask, render_template, request, Response
+from flask import Flask, render_template, request, jsonify, Response
 from openai import OpenAI
 import os, re, datetime, requests, json, pymongo, tiktoken
 
@@ -19,12 +19,15 @@ MCOLL = os.getenv('MONGODB_TELCO_CHAT_COLLECTION') # ...and the collection
 
 access_log_collection = pymongo.MongoClient(MCONN)[MBASE][MCOLL]
 
-ai = OpenAI(api_key = XAI_API_KEY, base_url = "https://api.x.ai/v1")
+#ai = OpenAI(api_key = XAI_API_KEY, base_url = "https://api.x.ai/v1")
+ai = OpenAI()
 
 MAX_TOKENS = 8192
 RESERVED_TOKENS = 1000
 
 encoding = tiktoken.encoding_for_model('gpt-4o')
+
+latest_pipeline = []
 
 
 def process_pipeline(pipeline_str):
@@ -70,7 +73,10 @@ def gen(text):
 
     If data for specific date, month, day, or weekday is requested,
     assume that we have the year 2025 and include this in the query
-    generation.
+    generation if no other year was mentioned.
+
+    To filter dates, always use true ISODates. And work with $expr,
+    $and where you see fit.
 
     Important: Never include stages in the pipeline that perform write
     operations on the database, such as $merge. The calculations of
@@ -84,17 +90,17 @@ def gen(text):
 
     try:
         response = ai.chat.completions.create(
-            model = "grok-3-latest",
+            #model = "grok-3-latest",
+            model = "gpt-4.1",
             messages = [
                 { "role" : "system", "content" : "You are a MongoDB query creation assistant." },
                 { "role" : "user", "content" : prompt }
-            ],
-            max_tokens = 2000,
-            n = 1,
-            temperature = 0.7
+            ]
+            #max_tokens = 2000,
+            #n = 1,
+            #temperature = 0.7
         )
         pipeline = response.choices[0].message.content.strip()
-        print(pipeline)
         return pipeline
 
     except Exception as e:
@@ -121,6 +127,10 @@ def get_logs(user_input):
         pipeline = gen(user_input)
         if pipeline:
             try:
+                # preserve latest pipeline
+                latest_pipeline.clear()
+                latest_pipeline.append(pipeline)
+                # and execute it
                 pipeline_converted = process_pipeline(pipeline)
                 context = str(list(access_log_collection.aggregate(pipeline_converted)))
                 if len(context) < 256000:
@@ -141,6 +151,20 @@ def get_logs(user_input):
 @app.route('/')
 def home():
     return render_template('index.html')
+
+
+def shorten(text):
+    lines = text.split('\n')
+    if len(lines) > 55:
+        shortened = lines[:55]
+        return '\n'.join(shortened) + '\n\n... skipped lines ...'
+    else:
+        return text
+
+
+@app.route("/latest-pipeline")
+def get_latest_pipeline():
+    return Response(shorten(latest_pipeline[0]), mimetype='text/plain')
 
 
 @app.route('/chat', methods=['POST'])
