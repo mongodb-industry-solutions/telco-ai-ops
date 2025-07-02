@@ -370,6 +370,44 @@ def parse_syslog_line(line):
                 "helo": m.group(9)
             })
 
+    elif "postfix/smtpd" in message and "improper command pipelining after CONNECT" in message:
+        result["type"] = "postfix_smtpd_pipelining_violation"
+        m = re.search(r'from (\S+)\[([\d\.]+)\]', message)
+        if m:
+            result.update({
+                "client_host": m.group(1),
+                "remote_ip": m.group(2)
+            })
+
+    elif "postfix/smtpd" in message and "non-SMTP command from" in message:
+        result["type"] = "postfix_smtpd_non_smtp_command"
+        m = re.search(r'from (\S+)\[([\d\.]+)\]: (.+)$', message)
+        if m:
+            result.update({
+                "client_host": m.group(1),
+                "remote_ip": m.group(2),
+                "non_smtp_command": m.group(3)
+            })
+
+    elif "postfix/smtpd" in message and "does not resolve to address" in message:
+        result["type"] = "postfix_smtpd_dns_mismatch"
+        m = re.search(r'hostname (\S+) does not resolve to address ([\d\.]+)', message)
+        if m:
+            result.update({
+                "hostname": m.group(1),
+                "remote_ip": m.group(2)
+            })
+
+    elif "dovecot: imap-login:" in message and "SSL_accept() failed" in message:
+        result["type"] = "dovecot_ssl_protocol_error"
+        m = re.search(r'rip=([\d\.]+), lip=([\d\.]+).*session=<([^>]+)>', message)
+        if m:
+            result.update({
+                "remote_ip": m.group(1),
+                "local_ip": m.group(2),
+                "session": m.group(3)
+            })
+
     # add geo information
     for ip_field in ("remote_ip", "client_ip"):
         if ip_field in result:
