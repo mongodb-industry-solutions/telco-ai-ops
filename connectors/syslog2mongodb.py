@@ -117,10 +117,28 @@ def parse_syslog_line(line):
             result.update({
                 "user": m.group(1),
                 "session": m.group(2),
-                "reason": m.group(3),
+                "reason": m.group(3).strip(),
                 "bytes_in": int(m.group(4)),
                 "bytes_out": int(m.group(5))
             })
+
+        extras = {
+            "deleted":      r"deleted=(\d+)",
+            "expunged":     r"expunged=(\d+)",
+            "trashed":      r"trashed=(\d+)",
+            "hdr_count":    r"hdr_count=(\d+)",
+            "hdr_bytes":    r"hdr_bytes=(\d+)",
+            "body_count":   r"body_count=(\d+)",
+            "body_bytes":   r"body_bytes=(\d+)"
+        }
+        for key, pattern in extras.items():
+            match = re.search(pattern, message)
+            if match:
+                result[key] = int(match.group(1))
+
+        state_match = re.search(r"state=([\w\-]+)", message)
+        if state_match:
+            result["state"] = state_match.group(1)
 
     # Logrotate
     elif "newsyslog" in message and "log file turned over" in message:
