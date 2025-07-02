@@ -351,6 +351,25 @@ def parse_syslog_line(line):
                 "event_time": m.group(4)
             })
 
+    elif "postfix/smtpd" in message and "NOQUEUE: reject: RCPT from" in message:
+        result["type"] = "postfix_smtpd_reject"
+        m = re.search(
+            r'RCPT from ([^\[]+)\[([\d\.]+)\]: (\d+) ([\d\.]+) <([^>]+)>: ([^;]+); from=<([^>]+)> to=<([^>]+)> proto=(\S+) helo=<([^>]+)>',
+            message
+        )
+        if m:
+            result.update({
+                "client_host": m.group(1),
+                "remote_ip": m.group(2),
+                "smtp_code": m.group(3),
+                "smtp_status": m.group(4),
+                "to": m.group(5),
+                "reason": m.group(6),
+                "from": m.group(7),
+                "proto": m.group(8),
+                "helo": m.group(9)
+            })
+
     # add geo information
     for ip_field in ("remote_ip", "client_ip"):
         if ip_field in result:
