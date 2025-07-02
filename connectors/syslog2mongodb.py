@@ -73,7 +73,7 @@ def parse_syslog_line(line):
             year=datetime.now(timezone.utc).year,
             tzinfo=timezone.utc
         )
-        result["timestamp"] = parsed_date.isoformat()
+        result["timestamp"] = parsed_date
     except ValueError:
         pass
 
