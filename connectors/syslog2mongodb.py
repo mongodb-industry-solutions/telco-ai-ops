@@ -6,7 +6,7 @@
 # for /var/log/maillog messages (NetBSD 10 postfix + dovecot)
 #
 
-import pymongo, time, os, re, geocoder
+import pymongo, time, os, re, ipinfo
 from datetime import datetime, timezone
 
 MCONN = os.getenv('MONGODB_IST_MEDIA')
@@ -15,11 +15,13 @@ MBASE = "1_media_demo"
 collection = pymongo.MongoClient(MCONN)[MBASE]["syslog"]
 LOG_FILE = "/var/log/maillog"
 
+access_token = 'd81edaace34b9d' # for ipinfo, registered under my name
+handler = ipinfo.getHandler(access_token)
+
 def lookup_ip(ip):
-    ws = geocoder.ip(ip)
+    details = handler.getDetails(ip)
     return {
-        "city": ws.city if ws.city else " - ",
-        "country": ws.country if ws.country else " - "
+        "country": details.country if details.country else " - "
     }
 
 def follow_rotating_file(path):
