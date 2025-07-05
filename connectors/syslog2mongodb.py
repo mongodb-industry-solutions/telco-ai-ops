@@ -21,7 +21,7 @@ handler = ipinfo.getHandler(access_token)
 def lookup_ip(ip):
     details = handler.getDetails(ip)
     return {
-        "country": details.country if details.country else " - "
+        "country": getattr(details, "country", None) or " - "
     }
 
 def follow_rotating_file(path):
