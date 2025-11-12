@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!--
+    Copyright (c) 2025 MongoDB Inc.
+    Author: Benjamin Lorenz <benjamin.lorenz@mongodb.com>
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Agentic AI Ops with MongoDB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            padding-left: 0;
+            padding-right: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5" style="display: flex; gap: 1.5rem; width: 100%;">
+        <div style="flex: 0 0 62%; display: flex; flex-direction: column;">
+            <h1>Agentic AI Ops with MongoDB</h1>
+            <div id="chat-box" class="mt-4" style="flex-grow: 1; overflow-y: auto;">
+                <!-- Chat messages will appear here -->
+            </div>
+            <form id="chat-form" class="mt-3">
+                <div class="form-group">
+                    <input type="text" id="message-input" class="form-control"
+                           placeholder="Type your message..." autocomplete="off" required>
+                </div>
+                <button type="submit" class="btn btn-primary"
+		                style="background-color: #b5ddb5; border-color: #b5ddb5; color: #333; font-weight: bold">
+                    Send
+                </button>
+                <div class="mt-3">
+                    <strong style="color: #444">You can try these questions:</strong>
+                    <ul>
+                        <li class="mb-0">
+                            <a href="#" class="chat-shortcut" style="color: #6f9f6f"
+                               data-message="What's the latest logs, from which date?">
+                                What's the latest logs, from which date?
+                            </a>
+                        </li>
+                        <li class="mb-0">
+                            <a href="#" class="chat-shortcut" style="color: #6f9f6f"
+                               data-message="How do numbers from June compare to the ones from the month before?">
+                                How do numbers from June compare to the ones from the month before?
+                            </a>
+                        </li>
+                        <li class="mb-0">
+                            <a href="#" class="chat-shortcut" style="color: #6f9f6f"
+                               data-message="Provide me with the top 5 IP addresses with cities, exclude localhost!">
+                                Provide me with the top 5 IP addresses with cities, exclude localhost!
+                            </a>
+                        </li>
+                        <li class="mb-0">
+                            <a href="#" class="chat-shortcut" style="color: #6f9f6f"
+                               data-message="What are latest requests originating from Czech Republic?">
+                                What are latest requests originating from Czech Republic?
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </form>
+        </div>
+        <div id="sidebar" style="flex: 0 0 38%; background-color: #f8f8f8; padding: 1rem; border-left: 1px solid #ddd;">
+            <h2 style="font-size: 1.25rem; color: #444;">Insights Panel</h2>
+            <p style="color: #666;">This space is used to show the generated MongoDB aggregation pipelines.</p>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+</body>
+</html>
