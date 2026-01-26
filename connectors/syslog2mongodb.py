@@ -15,8 +15,7 @@ MBASE = "1_media_demo"
 collection = pymongo.MongoClient(MCONN)[MBASE]["syslog"]
 LOG_FILE = "/var/log/maillog"
 
-access_token = 'd81edaace34b9d' # for ipinfo, registered under my name
-handler = ipinfo.getHandler(access_token)
+handler = ipinfo.getHandler()
 
 def lookup_ip(ip):
     details = handler.getDetails(ip)
